@@ -1,38 +1,58 @@
 /**
  * This is going to build over the Instagram's public API.
  *
- * Instagram currently allows accessing public posts but misses
- * a lot of functionality like limits, pagination, jsonp, etc.
- * This aims to fix that.
+ * Instagram currently allows accessing public posts but misses a lot of
+ * functionality like limits, pagination, jsonp, etc. This aims to fix that.
  *
  * @author me@nishantarora.in (Nishant Arora)
  */
 
+/* jshint esversion: 6 */
+/* jshint node: true */
 'use strict';
 
 // Imports.
-const bloom = require('bloomxx');
-const blacklist = require('./blacklist.js');
-const cors = require('cors');
-const domainParser = require('domain-parser');
-const express = require('express');
-const https = require('https');
-const responseTime = require('response-time');
-const url = require('url');
+const Bloom = require('bloomxx');
+const Blacklist = require('./blacklist.js');
+const Cors = require('cors');
+const DomainParser = require('domain-parser');
+const Express = require('express');
+const Https = require('https');
+const ResponseTime = require('response-time');
+const Url = require('url');
 
 // App Namespace.
-let InstaProxy = {};
+const InstaProxy = {};
 
-// Constants
-InstaProxy.SERVER_PORT = 3000;
-InstaProxy.PROTOCOL = (process.env.NODE_ENV === 'prod') ? 'https' : 'http';
+/** @const */ InstaProxy.DEBUG_MODE = (process.env.NODE_ENV === 'dev');
+/** @const */ InstaProxy.ALLOW_UNDEFINED_REFERRERS = true;
+/** @const */ InstaProxy.GITHUB_REPO =
+  'https://github.com/whizzzkid/instagram-reverse-proxy';
+/** @const */ InstaProxy.PROTOCOL = (InstaProxy.DEBUG_MODE) ?
+  'http' : 'https';
+/** @const */ InstaProxy.SERVER_PORT = 3000;
+/** @const */ InstaProxy.STATUS_CODES = {
+  OK: 200,
+  NO_CONTENT: 204,
+  PERMANENTLY_MOVED: 301,
+  ACCESS_DENIED: 403,
+  NOT_FOUND: 404,
+  SERVER_ERROR: 500
+};
+/** @const */ InstaProxy.GRAPH_OPTIONS = {
+  id: '',
+  first: 3,
+  after: ''
+};
+/** @const */ InstaProxy.GRAPH_PATH = '/graphql/query/';
+/** @const */ InstaProxy.GRAPH_QUERY_ID = '17888483320059182';
 
 
 /**
  * A simple logging function for consistency.
- * @param {string} msg
+ * @param {String} msg
  */
-InstaProxy.log = function (msg) {
+InstaProxy.log = function(msg) {
   var time = new Date();
   console.log('[' + time.toString() + '] ' + msg);
 };
@@ -40,221 +60,438 @@ InstaProxy.log = function (msg) {
 
 /**
  * Constructs New Url
- * @param {string} protocol
- * @param {string} host
- * @param {string} path
- * @param {string} query
- * @return {string} new url.
+ * @param {String} protocol
+ * @param {String} host
+ * @param {String} path
+ * @param {String} query
+ * @return {String} new url.
  */
-InstaProxy.constructURL = function (protocol, host, path, query) {
-  return url.format({
+InstaProxy.constructURL = function(protocol, host, path, query) {
+  return Url.format({
     'protocol': protocol, 'host': host, 'pathname': path, 'query': query
   });
 };
 
 
 /**
- * Reconstructs JSON as per query parameters.
- * @param {object} request
- * @param {object} json
- * @return {object} new data as per query.
+ * Perform GQL response reconstruction
+ * @param {Object} request
+ * @param {Object} json
+ * @return {Object} json response
+ * @this
  */
-InstaProxy.reconstructJSON = function (request, json) {
-  if ('items' in json && json.items.length > 0) {
-    var itemsAvailable = json.items.length;
+InstaProxy.reconstructJSONfromGQLResponse = function(request, json) {
+  json = json.data.user.edge_owner_to_timeline_media;
+  var response = {};
+  var query;
 
-    // Limiting number of posts as per count parameter.
-    if ('count' in request.query) {
-      json.items = json.items.slice(0, parseInt(request.query.count, 10));
-    }
+  // just copying.
+  query = Object.assign({}, request.query);
 
-    // We only need to show next page if we have posts available.
-    if (json.items.length > 0) {
-      delete request.query['max_id'];
-      delete request.query['min_id'];
-
-      var query = {};
-
-      // just copying.
-      query = Object.assign({}, request.query);
-      query['max_id'] = json.items[json.items.length - 1]['id'];
-      json['next'] = this.constructURL(
-          this.PROTOCOL, request.get('host'), request.path, query);
-
-      // just copying.
-      query = Object.assign({}, request.query);
-      query['min_id'] = json.items[0]['id'];
-      json['previous'] = this.constructURL(
-          this.PROTOCOL, request.get('host'), request.path, query);
-    }
+  if (json.page_info.has_next_page) {
+    query['cursor'] = json.page_info.end_cursor;
+    response['next'] = this.constructURL(
+      this.PROTOCOL, request.get('host'), request.path, query);
   }
-  return json;
-};
 
+  response.images = [];
+  for (var i in json.edges) {
+    response.images.push(json.edges[i].node);
+  }
 
-/**
- * Handles JSON data fetched from Instagram.
- * @param {object} request
- * @param {object} response
- * @param {object} json
- */
-InstaProxy.handleInstagramJSON = function (request, response, json) {
-  response.jsonp(this.reconstructJSON(request, json));
+  return response;
 };
 
 
 /**
  * Builds the callback function for handling Instagram response.
- * @param {object} request
- * @param {object} response
- * @return {function} callback
+ * @param {Function} callback
+ * @return {Function} callback
+ * @this
  */
-InstaProxy.buildInstagramHandlerCallback = function (request, response) {
-  return function (serverResponse) {
+InstaProxy.instagramFetcher = function(callback) {
+  return function(serverResponse) {
     serverResponse.setEncoding('utf8');
     var body = '';
-    serverResponse.on('data', function (chunk) {
+    serverResponse.on('data', function(chunk) {
       body += chunk;
     });
-    serverResponse.on('end', function () {
-      try {
-        var json = JSON.parse(body);
-        this.handleInstagramJSON(request, response, json);
-      } catch (error) {
-        response.status(404).send('Invalid User').end();
-      }
-    }.bind(this));
+    serverResponse.on('end', function() {
+      callback(body);
+    });
   };
 };
 
 
 /**
  * Fetches content from Instagram API.
- * @param {string} user
- * @param {object} request
- * @param {object} response
+ * @param {String} path
+ * @param {String} query
+ * @param {Function} callback
+ * @this
  */
-InstaProxy.fetchFromInstagram = function (user, request, response) {
-  https.get(
+InstaProxy.fetchFromInstagram = function(path, query, callback) {
+  this.log(
+    'Processing [P:"' + path + '", ' +
+    'Q:"' + JSON.stringify(query) + '"]');
+  Https.get(
     this.constructURL(
-      'https', 'www.instagram.com', '/' + user + '/media/', request.query),
-    this.buildInstagramHandlerCallback(request, response).bind(this));
+      'https', 'www.instagram.com', path, query),
+    this.instagramFetcher(callback.bind(this))
+  );
 };
 
 
 /**
  * Detects if the URL is safe based on blacklist.
- * @param {string} urlString
- * @return {boolean} url safe or not.
+ * @param {String} urlString
+ * @return {Boolean} url safe or not.
+ * @this
  */
-InstaProxy.safeUrl = function (urlString) {
-  var hostname = url.parse(urlString).hostname;
-  var domain = domainParser(hostname).domainName;
-  return !this.filter.has(domain);
-}
+InstaProxy.isNotOnBlackList = function(urlString) {
+  return !this.filter.has(
+    DomainParser(
+      Url.parse(urlString).hostname
+    ).domainName
+  );
+};
+
+
+/**
+ * Generate error message response object.
+ * @param {String} error
+ * @return {Object}
+ * @this
+ */
+InstaProxy.errorMessageGenerator = function(error) {
+  if (this.DEBUG_MODE) {
+    this.log(error);
+  }
+
+  return {
+    'error': error
+  };
+};
+
+
+/**
+ * Check if advanced params are requested.
+ * @param {Object} request
+ * @param {Object} response
+ * @return {Boolean}
+ * @this
+ */
+InstaProxy.isAdvancedRequestValid = function(request, response) {
+  if (!('__a' in request.query &&
+    request.query['__a'] === '1' &&
+    request.path !== '/'
+  )) {
+    this.respond(
+      response,
+      this.STATUS_CODES.NOT_FOUND,
+      this.errorMessageGenerator('Invalid Query Parameters.')
+    );
+    return false;
+  }
+  return true;
+};
+
+
+/**
+ * Generates a generic callback to be used along the wrapper.
+ * @param {Function} callback
+ * @param {Object} response
+ * @return {Function} callback
+ * @this
+ */
+InstaProxy.generateCallBackForWrapper = function(callback, response) {
+  return function(body) {
+    this.respond(
+      response,
+      this.STATUS_CODES.OK,
+      callback(body)
+    );
+  }.bind(this);
+};
+
+
+/**
+ * Wraps the callback in a try-catch callback.
+ * @param {Object} response
+ * @param {Function} callback
+ * @return {Function} callback
+ * @this
+ */
+InstaProxy.callbackWrapper = function(response, callback) {
+  return function(body) {
+    try {
+      callback(body);
+    } catch (error) {
+      this.respond(
+        response,
+        this.STATUS_CODES.NOT_FOUND,
+        this.errorMessageGenerator(error.toString())
+      );
+    }
+  }.bind(this);
+};
+
+
+/**
+ * Processing users by ID from the graph
+ * @param {Number} userId
+ * @param {Object} request
+ * @param {Object} response
+ * @this
+ */
+InstaProxy.processByUserId = function(userId, request, response) {
+  // Create a copy
+  var variables = Object.assign({}, this.GRAPH_OPTIONS);
+  // Assign values
+  variables.id = userId;
+  if (request.query.count != null) {
+    variables.first = request.query.count;
+  }
+  if (request.query.cursor != null) {
+    variables.after = request.query.cursor;
+  }
+  // Generate query for IG-GQL server.
+  var query = {
+    query_id: this.GRAPH_QUERY_ID,
+    variables: JSON.stringify(variables)
+  };
+  // Fetch
+  var callback = function(body) {
+    return this.reconstructJSONfromGQLResponse(request, JSON.parse(body));
+  }.bind(this);
+
+  this.fetchFromInstagram(
+    this.GRAPH_PATH,
+    query,
+    this.callbackWrapper(
+      response, this.generateCallBackForWrapper(callback, response)));
+};
 
 
 /**
  * Processing User Request. This works the same way as instagram API.
- * @param {object} request
- * @param {object} response
+ * @param {Object} request
+ * @param {Object} response
+ * @this
  */
-InstaProxy.processRequest = function (request, response) {
-  var user = request.params.user;
-  var referer = request.headers.referer;
-  if (referer === undefined ||
-      referer === 'undefined' ||
-      this.safeUrl(referer)) {
-    this.log('Processing [User:"' + user + '", ' +
-             'Query:"' + JSON.stringify(request.query) + ', ' +
-             'Referer:"' + referer + '"]');
-    this.fetchFromInstagram(user, request, response);
-  } else {
-    this.log('Denying access to request from: ' + referer);
-    this.accessDenied(request, response);
+InstaProxy.processAdvanceParams = function(request, response) {
+  if (this.isAdvancedRequestValid(request, response)) {
+      var callback = function(body) {
+        return JSON.parse(body);
+      };
+      this.fetchFromInstagram(
+        request.params[0],
+        request.query,
+        this.callbackWrapper(
+          response, this.generateCallBackForWrapper(callback, response)));
   }
 };
 
 
 /**
- * Access Denied.
- * @param {object} request
- * @param {object} response
+ * Processes IG's GQL Queries.
+ * @param {Object} request
+ * @param {Object} response
+ * @this
  */
-InstaProxy.accessDenied = function (request, response) {
-  response.status(403).end(
-    'Your website is blackListed. Contact me@nishantarora.in for more info.');
+InstaProxy.processGQL = function(request, response) {
+  // if request has user id
+  if (request.query.user_id) {
+    this.processByUserId(request.query.user_id, request, response);
+  }
+};
+
+
+/**
+ * Processing legacy requests. i.e. username/media queries.
+ * @param {Object} request
+ * @param {Object} response
+ * @this
+ */
+InstaProxy.processLegacy = function(request, response) {
+  var callback = function(body) {
+    var json = JSON.parse(body);
+    this.processByUserId(json.user.id, request, response);
+  };
+  this.fetchFromInstagram(
+    '/' + request.params.username + '/',
+    { '__a': 1 },
+    this.callbackWrapper(response, callback.bind(this)));
+};
+
+/**
+ * Send Response.
+ * @param {Object} response
+ * @param {number} statusCode
+ * @param {Object} jsonMessage
+ */
+InstaProxy.respond = function(response, statusCode, jsonMessage) {
+  response.status(statusCode).jsonp(jsonMessage).end();
 };
 
 
 /**
  * Sends no content as response.
- * @param {object} request
- * @param {object} response
+ * @param {Object} request
+ * @param {Object} response
+ * @this
  */
-InstaProxy.noContent = function (request, response) {
-  response.status(204).end();
+InstaProxy.noContent = function(request, response) {
+  this.respond(
+    response,
+    this.STATUS_CODES.NO_CONTENT,
+    this.errorMessageGenerator(request.path + ' Not Found')
+  );
 };
 
 
 /**
- * Sends User to project repo.
- * @param {object} request
- * @param {object} response
+ * Redirect to Repo.
+ * @param {Object} request
+ * @param {Object} response
+ * @this
  */
-InstaProxy.sendToRepo = function (request, response) {
-  response.redirect('https://github.com/whizzzkid/instagram-reverse-proxy');
+InstaProxy.sendToRepo = function(request, response) {
+  response.set({
+    'location': this.GITHUB_REPO
+  });
+  this.respond(
+    response,
+    this.STATUS_CODES.PERMANENTLY_MOVED,
+    this.errorMessageGenerator('Redirecting')
+  );
+};
+
+
+/**
+ * Server Check.
+ * @param {Object} request
+ * @param {Object} response
+ * @this
+ */
+InstaProxy.serverCheck = function(request, response) {
+  this.respond(
+    response,
+    this.STATUS_CODES.OK,
+    { ok: true }
+  );
 };
 
 
 /**
  * Run server.
+ * @this
  */
-InstaProxy.serve = function () {
+InstaProxy.serve = function() {
   this.log('Starting server.');
   this.app.listen(process.env.PORT || this.SERVER_PORT);
 };
 
 
 /**
- * Bloom Filter implementation for blacklisting domains.
+ * Verify the request from blacklist.
+ * @param {Object} request
+ * @param {Object} response
+ * @param {Function} next
+ * @this
  */
-InstaProxy.setUpFilter = function () {
-  this.log('Setting Up Filters');
-  this.filter = bloom.BloomFilter.createOptimal(blacklist.list.length);
-  for (var i in blacklist.list) {
-    this.filter.add(blacklist.list[i]);
+InstaProxy.safeRefererMW = function(request, response, next) {
+  var referer = request.headers.referer;
+  var isSafe = (this.DEBUG_MODE || this.ALLOW_UNDEFINED_REFERRERS) ? (
+    referer === undefined ||
+    referer === 'undefined' ||
+    this.isNotOnBlackList(referer)
+  ) : (
+    referer !== undefined &&
+    referer !== 'undefined' &&
+    this.isNotOnBlackList(referer)
+  );
+
+  if (!isSafe) {
+    this.respond(
+      response,
+      this.STATUS_CODES.ACCESS_DENIED,
+      this.errorMessageGenerator(
+        'Denying request from referer: ' + request.headers.referer)
+    );
+  } else {
+    next();
   }
-  this.serve();
 };
 
 
 /**
  * Sets up app routes.
+ * @this
  */
-InstaProxy.setUpRoutes = function () {
+InstaProxy.setUpRoutes = function() {
   this.log('Setting up routes.');
-  this.app.get('/favicon.ico', this.noContent);
-  this.app.get('/apple-touch-icon.png', this.noContent);
-  this.app.get('/:user/media/', cors(), this.processRequest.bind(this));
-  this.app.get('*', this.sendToRepo);
-  this.setUpFilter();
+  this.app.get('/', this.sendToRepo.bind(this));
+  this.app.get('/*\.(ico|png|css|html|js)', this.noContent.bind(this));
+  this.app.get('/server_check_hook', this.serverCheck.bind(this));
+
+  // Graph Queries
+  this.app.get(
+    '/graphql/query/',
+    this.safeRefererMW.bind(this),
+    this.processGQL.bind(this));
+
+  // Legacy requests
+  this.app.get(
+    '/:username/media/',
+    this.safeRefererMW.bind(this),
+    this.processLegacy.bind(this));
+
+    // remining, including advanced params
+  this.app.get(
+    '*',
+    this.safeRefererMW.bind(this),
+    this.processAdvanceParams.bind(this));
+
+  // serve
+  this.serve();
+};
+
+
+/**
+ * Bloom Filter implementation for blacklisted domains.
+ * @this
+ */
+InstaProxy.setUpFilter = function() {
+  this.log('Setting Up Filters');
+  this.filter = Bloom.BloomFilter.createOptimal(Blacklist.list.length);
+  for (var i in Blacklist.list) {
+    // Probably just being paranoid here.
+    if (Blacklist.list.hasOwnProperty(i)) {
+      this.filter.add(Blacklist.list[i]);
+    }
+  }
+  this.setUpRoutes();
 };
 
 
 /**
  * Sets Up App Params.
+ * @this
  */
-InstaProxy.setUpApp = function () {
-  this.app = express();
-  this.app.use(responseTime());
-  this.setUpRoutes();
+InstaProxy.setUpApp = function() {
+  this.app = Express();
+  this.app.use(ResponseTime());
+  this.app.use(Cors());
+  this.setUpFilter();
 };
+
 
 /**
  * Init Method.
+ * @this
  */
-InstaProxy.init = function () {
+InstaProxy.init = function() {
   this.log('Initializing.');
   this.setUpApp();
 };
