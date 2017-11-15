@@ -94,9 +94,9 @@ InstaProxy.reconstructJSONfromGQLResponse = function(request, json) {
       this.PROTOCOL, request.get('host'), request.path, query);
   }
 
-  response.images = [];
+  response.data = [];
   for (var i in json.edges) {
-    response.images.push(json.edges[i].node);
+    response.data.push(json.edges[i].node);
   }
 
   return response;
