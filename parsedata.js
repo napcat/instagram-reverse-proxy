@@ -1,4 +1,6 @@
-var parse = function(data)
+exports.parse = function(data)
 {
+	
+	
 	return data;
 }
