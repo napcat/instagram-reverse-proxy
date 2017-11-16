@@ -14,6 +14,7 @@
 // Imports.
 const Bloom = require('bloomxx');
 const Blacklist = require('./blacklist.js');
+const ParseData = require('./parsedata.js');
 const Cors = require('cors');
 const DomainParser = require('domain-parser');
 const Express = require('express');
