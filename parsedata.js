@@ -1,5 +1,7 @@
 exports.parse = function (data) 
 {
+	var instaposts = [];
+
 	if (data)
 	{
 		data.data.forEach(post => 
