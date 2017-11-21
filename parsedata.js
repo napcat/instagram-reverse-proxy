@@ -4,7 +4,7 @@ exports.parse = function (data)
 
 	if (data)
 	{
-		data.data.forEach(post => 
+		data.items.forEach(post => 
 		{
 			/**
 			 * Gets a default object with default values
@@ -122,7 +122,7 @@ exports.parse = function (data)
 	/**
 	 * Update data object with parsed data objects
 	 */
-	data.data = instaposts;
+	data.items = instaposts;
 
 	return data;
 }
