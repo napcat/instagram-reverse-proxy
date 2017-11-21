@@ -119,6 +119,13 @@ exports.parse = function (data)
 		});
 	}
 
+	data.next;
+
+	/**
+	* Check if there's more items to call.
+	*/
+	data.more_available = data.next && data.next != "" ? true : false;
+
 	/**
 	 * Update data object with parsed data objects
 	 */
