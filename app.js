@@ -83,11 +83,14 @@ InstaProxy.constructURL = function (protocol, host, path, query) {
  * @this
  */
 InstaProxy.reconstructJSONfromGQLResponse = function (request, json) {
+	
+	this.log("reconstructJSONfromGQLResponse : " + JSON.stringify(json));
+	
 	json = json.data.user.edge_owner_to_timeline_media;
 	var response = {};
 	var query;
 
-	this.log("reconstructJSONfromGQLResponse : " + JSON.stringify(json));
+	
 
 	// just copying.
 	query = Object.assign({}, request.query);
@@ -104,15 +107,15 @@ InstaProxy.reconstructJSONfromGQLResponse = function (request, json) {
 	}
 
 	/////* remover
-	this.USER_DATA = 
-	{
-		full_name: json.data.user.full_name,
-		username: json.data.user.username,
-		profile_pic_url: json.data.user.profile_pic_url,
-		id: json.data.user.id
-	};
+	////this.USER_DATA = 
+	//{
+		//full_name: json.data.user.full_name,
+		//username: json.data.user.username,
+		//profile_pic_url: json.data.user.profile_pic_url,
+		//id: json.data.user.id
+	//};
 	//this.log(JSON.stringify(this.USER_DATA));
-	this.log(JSON.stringify(request.params));
+	//this.log(JSON.stringify(request.params));
 	//////*
 
 	//Sets userdata to user property
