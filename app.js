@@ -249,6 +249,11 @@ InstaProxy.callbackWrapper = function(response, callback) {
  * @this
  */
 InstaProxy.processByUserId = function(userId, request, response) {
+  
+  this.log("userId : " + userId);
+  this.log("request : " + request);
+  this.log("response : " + response);
+  
   // Create a copy
   var variables = Object.assign({}, this.GRAPH_OPTIONS);
   // Assign values
