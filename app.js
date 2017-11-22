@@ -48,6 +48,7 @@ const InstaProxy = {};
 /** @const */ InstaProxy.GRAPH_PATH = '/graphql/query/';
 /** @const */ InstaProxy.GRAPH_QUERY_ID = '17888483320059182';
 
+/** @const */ InstaProxy.USER_DATA = {};
 
 /**
  * A simple logging function for consistency.
@@ -99,6 +100,9 @@ InstaProxy.reconstructJSONfromGQLResponse = function(request, json) {
   for (var i in json.edges) {
     response.items.push(json.edges[i].node);
   }
+  
+  //Sets userdata to user property
+  response.user = this.USER_DATA;
   
   //Parse data to data structer  
   response = ParseData.parse(response);
@@ -327,6 +331,18 @@ InstaProxy.processLegacy = function(request, response) {
     var json = JSON.parse(body);
     this.processByUserId(json.user.id, request, response);
   };
+  
+  /////* remover
+  this.USER_DATA = {
+    full_name:        request.params.full_name,
+    username:         request.params.username,
+    profile_pic_url:  request.params.profile_pic_url,
+    id:               request.params.id
+  };
+
+ this.log(JSON.stringify(request), JSON.stringify(this.USER_DATA));
+  //////*
+  
   this.fetchFromInstagram(
     '/' + request.params.username + '/',
     { '__a': 1 },
