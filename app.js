@@ -254,9 +254,9 @@ InstaProxy.processByUserId = function (userId, request, response) {
 	// Create a copy
 	var variables = Object.assign({}, this.GRAPH_OPTIONS);
 
-	log("Func processByUserId userId:" + userId);
-	log("Func processByUserId request:" + request)
-	log("Func processByUserId response:" + response)
+	this.log("Func processByUserId userId:" + userId);
+	this.log("Func processByUserId request:" + request)
+	this.log("Func processByUserId response:" + response)
 
 	// Assign values
 	variables.id = userId;
