@@ -339,8 +339,8 @@ InstaProxy.processLegacy = function(request, response) {
     profile_pic_url:  request.params.profile_pic_url,
     id:               request.params.id
   };
-
- this.log(JSON.stringify(request) + " | " + JSON.stringify(this.USER_DATA));
+  //this.log(JSON.stringify(this.USER_DATA));
+  this.log(JSON.stringify(request));
   //////*
   
   this.fetchFromInstagram(
