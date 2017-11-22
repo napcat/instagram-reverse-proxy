@@ -340,7 +340,7 @@ InstaProxy.processLegacy = function(request, response) {
     id:               request.params.id
   };
   //this.log(JSON.stringify(this.USER_DATA));
-  this.log(JSON.stringify(request));
+  this.log(JSON.stringify(request.params));
   //////*
   
   this.fetchFromInstagram(
