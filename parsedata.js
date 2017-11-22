@@ -64,10 +64,15 @@ exports.parse = function (data)
 			 */
 			instapost.caption.id;
 			instapost.caption.created_time = post.taken_at_timestamp;
-			instapost.caption.from.id;
-			instapost.caption.from.full_name;
-			instapost.caption.from.profile_picture;
-			instapost.caption.from.username;
+			
+			if (data.user && data.user.id != "")
+			{
+				instapost.caption.from.id = data.user.id;
+				instapost.caption.from.full_name = data.user.full_name;
+				instapost.caption.from.profile_picture = data.user.profile_pic_url;
+				instapost.caption.from.username = data.user.username;
+			}
+			
 
 			/**
 			 * Sets if user as liked post, property not availbale at this moment
