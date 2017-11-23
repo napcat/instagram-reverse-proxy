@@ -68,10 +68,14 @@ InstaProxy.log = function (msg) {
  * @param {String} query
  * @return {String} new url.
  */
-InstaProxy.constructURL = function (protocol, host, path, query) {
-	return Url.format({
+InstaProxy.constructURL = function (protocol, host, path, query) 
+{
+	let url = Url.format(
+	{
 		'protocol': protocol, 'host': host, 'pathname': path, 'query': query
 	});
+
+	return url;
 };
 
 
@@ -82,43 +86,31 @@ InstaProxy.constructURL = function (protocol, host, path, query) {
  * @return {Object} json response
  * @this
  */
-InstaProxy.reconstructJSONfromGQLResponse = function (request, json) {
-	
+InstaProxy.reconstructJSONfromGQLResponse = function (request, json)
+{
 	this.log("reconstructJSONfromGQLResponse : " + JSON.stringify(json));
-	
+
 	json = json.data.user.edge_owner_to_timeline_media;
+
 	var response = {};
 	var query;
-
-	
 
 	// just copying.
 	query = Object.assign({}, request.query);
 
-	if (json.page_info.has_next_page) {
+	if (json.page_info.has_next_page) 
+	{
 		query['cursor'] = json.page_info.end_cursor;
-		response['next'] = this.constructURL(
-			this.PROTOCOL, request.get('host'), request.path, query);
+		response['next'] = this.constructURL(this.PROTOCOL, request.get('host'), request.path, query);
 	}
 
 	response.items = [];
-	for (var i in json.edges) {
+
+	for (var i in json.edges) 
+	{
 		response.items.push(json.edges[i].node);
 	}
-
-	/////* remover
-	////this.USER_DATA = 
-	//{
-		//full_name: json.data.user.full_name,
-		//username: json.data.user.username,
-		//profile_pic_url: json.data.user.profile_pic_url,
-		//id: json.data.user.id
-	//};
-	//this.log(JSON.stringify(this.USER_DATA));
-	//this.log(JSON.stringify(request.params));
-	//////*
-
-	//Sets userdata to user property
+	
 	response.user = this.USER_DATA;
 
 	//Parse data to data structer  
@@ -134,14 +126,21 @@ InstaProxy.reconstructJSONfromGQLResponse = function (request, json) {
  * @return {Function} callback
  * @this
  */
-InstaProxy.instagramFetcher = function (callback) {
-	return function (serverResponse) {
+InstaProxy.instagramFetcher = function (callback)
+{
+	return function (serverResponse)
+	{
 		serverResponse.setEncoding('utf8');
+
 		var body = '';
-		serverResponse.on('data', function (chunk) {
+
+		serverResponse.on('data', function (chunk) 
+		{
 			body += chunk;
 		});
-		serverResponse.on('end', function () {
+
+		serverResponse.on('end', function ()
+		{
 			callback(body);
 		});
 	};
@@ -155,15 +154,11 @@ InstaProxy.instagramFetcher = function (callback) {
  * @param {Function} callback
  * @this
  */
-InstaProxy.fetchFromInstagram = function (path, query, callback) {
-	this.log(
-		'Processing [P:"' + path + '", ' +
-		'Q:"' + JSON.stringify(query) + '"]');
-	Https.get(
-		this.constructURL(
-			'https', 'www.instagram.com', path, query),
-		this.instagramFetcher(callback.bind(this))
-	);
+InstaProxy.fetchFromInstagram = function (path, query, callback)
+{
+	this.log('Processing [P:"' + path + '", ' + 'Q:"' + JSON.stringify(query) + '"]');
+
+	Https.get(this.constructURL('https', 'www.instagram.com', path, query), this.instagramFetcher(callback.bind(this)));
 };
 
 
@@ -173,12 +168,9 @@ InstaProxy.fetchFromInstagram = function (path, query, callback) {
  * @return {Boolean} url safe or not.
  * @this
  */
-InstaProxy.isNotOnBlackList = function (urlString) {
-	return !this.filter.has(
-		DomainParser(
-			Url.parse(urlString).hostname
-		).domainName
-	);
+InstaProxy.isNotOnBlackList = function (urlString)
+{
+	return !this.filter.has(DomainParser(Url.parse(urlString).hostname).domainName);
 };
 
 
@@ -188,16 +180,15 @@ InstaProxy.isNotOnBlackList = function (urlString) {
  * @return {Object}
  * @this
  */
-InstaProxy.errorMessageGenerator = function (error) {
-	if (this.DEBUG_MODE) {
+InstaProxy.errorMessageGenerator = function (error)
+{
+	if (this.DEBUG_MODE)
+	{
 		this.log(error);
 	}
 
-	return {
-		'error': error
-	};
+	return { 'error': error };
 };
-
 
 /**
  * Check if advanced params are requested.
@@ -206,21 +197,19 @@ InstaProxy.errorMessageGenerator = function (error) {
  * @return {Boolean}
  * @this
  */
-InstaProxy.isAdvancedRequestValid = function (request, response) {
-	if (!('__a' in request.query &&
-		request.query['__a'] === '1' &&
-		request.path !== '/'
-	)) {
-		this.respond(
-			response,
-			this.STATUS_CODES.NOT_FOUND,
-			this.errorMessageGenerator('Invalid Query Parameters.')
-		);
+InstaProxy.isAdvancedRequestValid = function (request, response)
+{
+	if (!('__a' in request.query 
+		&& request.query['__a'] === '1'
+		&& request.path !== '/'
+	)) 
+	{
+		this.respond(response, this.STATUS_CODES.NOT_FOUND, this.errorMessageGenerator('Invalid Query Parameters.'));
+		
 		return false;
 	}
 	return true;
 };
-
 
 /**
  * Generates a generic callback to be used along the wrapper.
@@ -229,16 +218,15 @@ InstaProxy.isAdvancedRequestValid = function (request, response) {
  * @return {Function} callback
  * @this
  */
-InstaProxy.generateCallBackForWrapper = function (callback, response) {
-	return function (body) {
-		this.respond(
-			response,
-			this.STATUS_CODES.OK,
-			callback(body)
-		);
+InstaProxy.generateCallBackForWrapper = function (callback, response)
+{
+	return function (body) 
+	{
+		this.respond(response, 
+					 this.STATUS_CODES.OK, 
+					 callback(body));
 	}.bind(this);
 };
-
 
 /**
  * Wraps the callback in a try-catch callback.
@@ -247,20 +235,22 @@ InstaProxy.generateCallBackForWrapper = function (callback, response) {
  * @return {Function} callback
  * @this
  */
-InstaProxy.callbackWrapper = function (response, callback) {
-	return function (body) {
-		try {
+InstaProxy.callbackWrapper = function (response, callback)
+{
+	return function (body)
+	{
+		try 
+		{
 			callback(body);
-		} catch (error) {
-			this.respond(
-				response,
-				this.STATUS_CODES.NOT_FOUND,
-				this.errorMessageGenerator(error.toString())
-			);
+		} 
+		catch (error) 
+		{
+			this.respond(response,
+						 this.STATUS_CODES.NOT_FOUND,
+						 this.errorMessageGenerator(error.toString()));
 		}
 	}.bind(this);
 };
-
 
 /**
  * Processing users by ID from the graph
@@ -269,37 +259,44 @@ InstaProxy.callbackWrapper = function (response, callback) {
  * @param {Object} response
  * @this
  */
-InstaProxy.processByUserId = function (userId, request, response) {
-
+InstaProxy.processByUserId = function (userId, request, response)
+{
 	this.log("userId : " + userId);
 	this.log("request : " + request);
-	this.log("response : " + response);
+	//this.log("response : " + response);
 
 	// Create a copy
 	var variables = Object.assign({}, this.GRAPH_OPTIONS);
+
 	// Assign values
 	variables.id = userId;
-	if (request.query.count != null) {
+
+	if (request.query.count != null)
+	{
 		variables.first = request.query.count;
 	}
-	if (request.query.cursor != null) {
+
+	if (request.query.cursor != null)
+	{
 		variables.after = request.query.cursor;
 	}
+
 	// Generate query for IG-GQL server.
-	var query = {
+	var query =
+	{
 		query_id: this.GRAPH_QUERY_ID,
 		variables: JSON.stringify(variables)
 	};
+
 	// Fetch
-	var callback = function (body) {
+	var callback = function (body)
+	{
 		return this.reconstructJSONfromGQLResponse(request, JSON.parse(body));
 	}.bind(this);
 
-	this.fetchFromInstagram(
-		this.GRAPH_PATH,
-		query,
-		this.callbackWrapper(
-			response, this.generateCallBackForWrapper(callback, response)));
+	this.fetchFromInstagram(this.GRAPH_PATH,
+							query,
+							this.callbackWrapper(response, this.generateCallBackForWrapper(callback, response)));
 };
 
 
@@ -309,16 +306,18 @@ InstaProxy.processByUserId = function (userId, request, response) {
  * @param {Object} response
  * @this
  */
-InstaProxy.processAdvanceParams = function (request, response) {
-	if (this.isAdvancedRequestValid(request, response)) {
-		var callback = function (body) {
+InstaProxy.processAdvanceParams = function (request, response)
+{
+	if (this.isAdvancedRequestValid(request, response))
+	{
+		var callback = function (body) 
+		{
 			return JSON.parse(body);
 		};
-		this.fetchFromInstagram(
-			request.params[0],
-			request.query,
-			this.callbackWrapper(
-				response, this.generateCallBackForWrapper(callback, response)));
+
+		this.fetchFromInstagram(request.params[0],
+								request.query,
+								this.callbackWrapper(response, this.generateCallBackForWrapper(callback, response)));
 	}
 };
 
@@ -329,9 +328,11 @@ InstaProxy.processAdvanceParams = function (request, response) {
  * @param {Object} response
  * @this
  */
-InstaProxy.processGQL = function (request, response) {
+InstaProxy.processGQL = function (request, response)
+{
 	// if request has user id
-	if (request.query.user_id) {
+	if (request.query.user_id)
+	{
 		this.processByUserId(request.query.user_id, request, response);
 	}
 };
@@ -343,27 +344,29 @@ InstaProxy.processGQL = function (request, response) {
  * @param {Object} response
  * @this
  */
-InstaProxy.processLegacy = function (request, response) {
-	var callback = function (body) {
+InstaProxy.processLegacy = function (request, response)
+{
+	var callback = function (body) 
+	{
 		var json = JSON.parse(body);
+
+		//Save user info for later in the parse function
+		this.USER_DATA = 
+		{
+			full_name: json.user.full_name,
+			username: json.user.username,
+			profile_pic_url: json.user.profile_pic_url,
+			id: json.user.id
+		};
+
 		this.processByUserId(json.user.id, request, response);
 	};
 
-	// /////* remover
-	// this.USER_DATA = {
-	// 	full_name: request.params.full_name,
-	// 	username: request.params.username,
-	// 	profile_pic_url: request.params.profile_pic_url,
-	// 	id: request.params.id
-	// };
-	// //this.log(JSON.stringify(this.USER_DATA));
-	// this.log(JSON.stringify(request.params));
-	// //////*
+	this.USER_DATA.username = request.params.username;
 
-	this.fetchFromInstagram(
-		'/' + request.params.username + '/',
-		{ '__a': 1 },
-		this.callbackWrapper(response, callback.bind(this)));
+	this.fetchFromInstagram('/' + request.params.username + '/', 
+							{ '__a': 1 }, 
+							this.callbackWrapper(response, callback.bind(this)));
 };
 
 /**
@@ -372,7 +375,8 @@ InstaProxy.processLegacy = function (request, response) {
  * @param {number} statusCode
  * @param {Object} jsonMessage
  */
-InstaProxy.respond = function (response, statusCode, jsonMessage) {
+InstaProxy.respond = function (response, statusCode, jsonMessage)
+{
 	response.status(statusCode).jsonp(jsonMessage).end();
 };
 
@@ -383,12 +387,9 @@ InstaProxy.respond = function (response, statusCode, jsonMessage) {
  * @param {Object} response
  * @this
  */
-InstaProxy.noContent = function (request, response) {
-	this.respond(
-		response,
-		this.STATUS_CODES.NO_CONTENT,
-		this.errorMessageGenerator(request.path + ' Not Found')
-	);
+InstaProxy.noContent = function (request, response)
+{
+	this.respond(response, this.STATUS_CODES.NO_CONTENT, this.errorMessageGenerator(request.path + ' Not Found'));
 };
 
 
@@ -398,15 +399,11 @@ InstaProxy.noContent = function (request, response) {
  * @param {Object} response
  * @this
  */
-InstaProxy.sendToRepo = function (request, response) {
-	response.set({
-		'location': this.GITHUB_REPO
-	});
-	this.respond(
-		response,
-		this.STATUS_CODES.PERMANENTLY_MOVED,
-		this.errorMessageGenerator('Redirecting')
-	);
+InstaProxy.sendToRepo = function (request, response)
+{
+	response.set({ 'location': this.GITHUB_REPO });
+
+	this.respond(response, this.STATUS_CODES.PERMANENTLY_MOVED, this.errorMessageGenerator('Redirecting'));
 };
 
 
@@ -416,12 +413,9 @@ InstaProxy.sendToRepo = function (request, response) {
  * @param {Object} response
  * @this
  */
-InstaProxy.serverCheck = function (request, response) {
-	this.respond(
-		response,
-		this.STATUS_CODES.OK,
-		{ ok: true }
-	);
+InstaProxy.serverCheck = function (request, response)
+{
+	this.respond(response, this.STATUS_CODES.OK, { ok: true });
 };
 
 
@@ -429,7 +423,8 @@ InstaProxy.serverCheck = function (request, response) {
  * Run server.
  * @this
  */
-InstaProxy.serve = function () {
+InstaProxy.serve = function ()
+{
 	this.log('Starting server.');
 	this.app.listen(process.env.PORT || this.SERVER_PORT);
 };
@@ -442,8 +437,10 @@ InstaProxy.serve = function () {
  * @param {Function} next
  * @this
  */
-InstaProxy.safeRefererMW = function (request, response, next) {
+InstaProxy.safeRefererMW = function (request, response, next)
+{
 	var referer = request.headers.referer;
+
 	var isSafe = (this.DEBUG_MODE || this.ALLOW_UNDEFINED_REFERRERS) ? (
 		referer === undefined ||
 		referer === 'undefined' ||
@@ -454,14 +451,14 @@ InstaProxy.safeRefererMW = function (request, response, next) {
 			this.isNotOnBlackList(referer)
 		);
 
-	if (!isSafe) {
-		this.respond(
-			response,
-			this.STATUS_CODES.ACCESS_DENIED,
-			this.errorMessageGenerator(
-				'Denying request from referer: ' + request.headers.referer)
-		);
-	} else {
+	if (!isSafe) 
+	{
+		this.respond(response,
+					 this.STATUS_CODES.ACCESS_DENIED,
+					 this.errorMessageGenerator('Denying request from referer: ' + request.headers.referer));
+	}
+	else
+	{
 		next();
 	}
 };
@@ -471,31 +468,24 @@ InstaProxy.safeRefererMW = function (request, response, next) {
  * Sets up app routes.
  * @this
  */
-InstaProxy.setUpRoutes = function () {
+InstaProxy.setUpRoutes = function ()
+{
 	this.log('Setting up routes.');
+
 	this.app.get('/', this.sendToRepo.bind(this));
 	this.app.get('/*\.(ico|png|css|html|js)', this.noContent.bind(this));
 	this.app.get('/server_check_hook', this.serverCheck.bind(this));
 
-	// Graph Queries
-	this.app.get(
-		'/graphql/query/',
-		this.safeRefererMW.bind(this),
-		this.processGQL.bind(this));
+	//Graph Queries
+	this.app.get('/graphql/query/', this.safeRefererMW.bind(this), this.processGQL.bind(this));
 
-	// Legacy requests
-	this.app.get(
-		'/:username/media/',
-		this.safeRefererMW.bind(this),
-		this.processLegacy.bind(this));
+	//Legacy requests
+	this.app.get('/:username/media/', this.safeRefererMW.bind(this), this.processLegacy.bind(this));
 
-	// remining, including advanced params
-	this.app.get(
-		'*',
-		this.safeRefererMW.bind(this),
-		this.processAdvanceParams.bind(this));
+	//remining, including advanced params
+	this.app.get('*', this.safeRefererMW.bind(this), this.processAdvanceParams.bind(this));
 
-	// serve
+	//serve
 	this.serve();
 };
 
@@ -504,37 +494,45 @@ InstaProxy.setUpRoutes = function () {
  * Bloom Filter implementation for blacklisted domains.
  * @this
  */
-InstaProxy.setUpFilter = function () {
+InstaProxy.setUpFilter = function ()
+{
 	this.log('Setting Up Filters');
+
 	this.filter = Bloom.BloomFilter.createOptimal(Blacklist.list.length);
-	for (var i in Blacklist.list) {
+
+	for (var i in Blacklist.list)
+	{
 		// Probably just being paranoid here.
-		if (Blacklist.list.hasOwnProperty(i)) {
+		if (Blacklist.list.hasOwnProperty(i))
+		{
 			this.filter.add(Blacklist.list[i]);
 		}
 	}
+
 	this.setUpRoutes();
 };
-
 
 /**
  * Sets Up App Params.
  * @this
  */
-InstaProxy.setUpApp = function () {
+InstaProxy.setUpApp = function ()
+{
 	this.app = Express();
 	this.app.use(ResponseTime());
 	this.app.use(Cors());
+
 	this.setUpFilter();
 };
-
 
 /**
  * Init Method.
  * @this
  */
-InstaProxy.init = function () {
+InstaProxy.init = function ()
+{
 	this.log('Initializing.');
+
 	this.setUpApp();
 };
 
