@@ -17,6 +17,14 @@ exports.parse = function (data)
 			instapost.id = post.id;
 
 			/**
+			 * Sets user props.
+			 */
+			instapost.user = data.user;
+			
+			//Special case for image profile pic
+			instapost.user.profile_picture = data.user.profile_pic_url;
+
+			/**
 			 * Parse images/thumbnails url and sizes
 			 */
 			post.thumbnail_resources.forEach(image =>
